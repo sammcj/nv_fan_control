@@ -1,0 +1,28 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install golang
+        uses: actions/setup-go@v4
+      - name: Build
+        run: go build nv_fan_control.go -o nv_fan_control
+      - name: upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: nv_fan_control
+          path: nv_fan_control
+      - run: |
+          echo "Build complete" >> $GITHUB_STEP_SUMMARY
+          ls -la nv_fan_control  >> $GITHUB_STEP_SUMMARY

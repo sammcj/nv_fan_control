@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -340,18 +339,7 @@ func checkPwmMode() {
 	// check if the file is set to 1
 	if string(data) != "1" {
 
-		// If we're not running as a daemon, ask the user if they want to set the file to 1
-		if !daemonMode {
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Print("The fan enable file is not set to 1. Do you want to set it to 1? (y/n): ")
-			text, _ := reader.ReadString('\n')
-			text = strings.TrimSpace(text)
-			if text != "y" {
-				os.Exit(1)
-			}
-		}
-
-		// set the file to 1 if we're running as a daemon or the user said yes
+		// set the sysfs object to 1 to enable software pwm control
 		err = os.WriteFile(fanPath+"_enable", []byte("1"), 0644)
 		println("Setting fan enable file to 1 to enable software pwm control")
 		if err != nil {
@@ -569,6 +557,11 @@ func main() {
 	}
 
 	logFile := "/var/log/nv_fan_control.log"
+	// If it already exists, rename it to .1 and create a new one
+	if _, err := os.Stat(logFile); err == nil {
+		os.Rename(logFile, logFile+".1")
+	}
+
 	logf, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatal(err)
