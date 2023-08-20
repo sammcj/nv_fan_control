@@ -83,7 +83,7 @@ func init() {
 	logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 
 	flag.StringVar(&fanPath, "fanpath", "/sys/class/hwmon/hwmon4/pwm3", "Path to the PWM fan control")
-	flag.Float64Var(&fanSensitivity, "sensitivity", 1.5, "Higher means slower initial response to temp changes.")
+	flag.Float64Var(&fanSensitivity, "sensitivity", 1.25, "Higher means slower initial response to temp changes.")
 	flag.BoolVar(&daemonMode, "daemon", false, "Run as a background daemon")
 	flag.IntVar(&pollInterval, "interval", 3, "Polling interval in seconds")
 	flag.BoolVar(&listAllFans, "list", false, "List all controllable fans")
@@ -95,7 +95,7 @@ func init() {
 	flag.BoolVar(&load, "load", false, "Load config file (~/.config/nv_fan_control)")
 	flag.BoolVar(&temp, "temp", false, "Print the current GPU temperature and exit")
 	flag.IntVar(&threshold, "threshold", 60, "Temperature threshold to move linear response (in degrees C))")
-	flag.IntVar(&maxTemp, "maxTemp", 80, "Maximum operating temperature, fan at 100%")
+	flag.IntVar(&maxTemp, "maxTemp", 76, "Maximum operating temperature, fan at 100%")
 	flag.StringVar(&logFile, "log", "", "File to log to (leave blank to log to journalctl)")
 	flag.IntVar(&maxSamples, "MaxSamples", 40, "Number of samples to log for the moving average information")
 	flag.BoolVar(&debug, "debug", false, "Enable debug logging")
@@ -571,12 +571,14 @@ func main() {
 	// Reinitialize the logger
 	if logFile != "" {
 		logger = log.New(io.MultiWriter(os.Stdout, logf), "", log.LstdFlags)
+		logger.Println("Logging started")
 	} else {
 		syslogger, err := syslog.New(syslog.LOG_NOTICE, "nv_fan_control")
 		if err != nil {
 			log.Fatal(err)
 		}
 		logger = log.New(io.MultiWriter(os.Stdout, syslogger), "", 0)
+		logger.Println("Logging started")
 	}
 
 	// Log out the current settings
@@ -648,6 +650,11 @@ func main() {
 
 		var pwm int
 
+		// If previousTemperature is not between 0 and maxTemp, set the fans to maxPWM (for safety)
+		if previousTemperature < 0 || previousTemperature > maxTemp {
+			pwm = maxPWM
+		}
+
 		// if there's no change, don't do anything
 		if temperature == previousTemperature {
 			time.Sleep(time.Duration(pollInterval) * time.Second)
@@ -697,11 +704,10 @@ func main() {
 
 			logger.Printf("GPU Temp: %d. Utilisation: %d%%, [Calculated PWM: %d]\n", temperature, GPUUtilisation(), pwm)
 		}
-		// Store the previous values
-		previousTemperature = temperature
-
 		// Update the fan PWM
 		setFanSpeed(pwm)
+		// Store the current temperature values
+		previousTemperature = temperature
 
 		dataLog(previousTemperature, previousPWM, temperature, pwm)
 
