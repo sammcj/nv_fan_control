@@ -17,7 +17,7 @@ jobs:
       - name: Install golang
         uses: actions/setup-go@v4
       - name: Build
-        run: go build nv_fan_control.go -o nv_fan_control
+        run: go build nv_fan_control.go
       - name: upload build artifact
         uses: actions/upload-artifact@v3
         with:
