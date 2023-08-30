@@ -4,9 +4,9 @@ After=sysinit.target
 
 [Service]
 Type=simple
-Environment="FAN_DEVICE=/sys/class/hwmon/hwmon4/pwm3"
+Environment="FAN_DEVICE=/sys/class/hwmon/hwmon5/pwm3"
 User=root
-ExecStart=/usr/local/sbin/nv_fan_control -sensitivity 2.5 -maxTemp 77 -maxPWM 240 -basePWM 55 -interval 3 -fanpath ${FAN_DEVICE}
+ExecStart=/usr/local/sbin/nv_fan_control -sensitivity 2.7 -maxTemp 77 -maxPWM 240 -basePWM 52 -interval 3 -fanpath ${FAN_DEVICE}
 Restart=always
 RestartSec=3
 TimeoutStopSec=5
@@ -21,7 +21,7 @@ PrivateTmp=true
 #PrivateDevices=true
 NoNewPrivileges=true
 # Granting write access to this path alone
-ReadWritePaths=/sys/class/hwmon/hwmon4/pwm3
+ReadWritePaths=/sys/class/hwmon/hwmon5/pwm3
 SystemCallFilter=~@reboot @swap @obsolete @keyring @module @clock @cpu-emulation @debug @mount @raw-io
 #ProtectKernelTunables=true
 ProtectKernelModules=true

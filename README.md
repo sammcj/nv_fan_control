@@ -8,7 +8,7 @@ Hacked this up for a custom 12v blower fan I'm running on an old Nvidia Tesla P1
 
 ```shell
 nv_fan_control -help
-nv_fan_control -sensitivity 2 -maxPWM 245 -basePWM 55 -interval 3 -fanpath /sys/class/hwmon/hwmon4/pwm3
+nv_fan_control -sensitivity 2 -maxPWM 245 -basePWM 55 -interval 3 -fanpath /sys/class/hwmon/hwmon5/pwm3
 ```
 
 ## Installation

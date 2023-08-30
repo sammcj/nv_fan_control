@@ -50,6 +50,12 @@ var simpleFanSpeed bool = true
 var gpuID int = 0
 var virtualSensorPath string = "/sys/class/thermal/nvidiaVirtualSensor/temp"
 var virtualSensor bool = false
+var idlePowerSave bool = false // #TODO: this isn't working yet
+var idlePowerSaveThreshold int = 5
+var maxClockSpeed int = 0
+var maxMemorySpeed int = 0
+var idleClockSpeed int = 0
+var idleMemorySpeed int = 0
 
 // Set temperatureChanges to [maxSamples]int
 var temperatureChanges = make([]int, maxSamples)
@@ -60,29 +66,31 @@ const (
 )
 
 type Config struct {
-	FanPath        string  `json:"fan_path"`
-	FanSensitivity float64 `json:"fan_sensitivity"`
-	DaemonMode     bool    `json:"daemon_mode"`
-	PollInterval   int     `json:"poll_interval"`
-	BasePWM        int     `json:"base_pwm"`
-	MaxPWM         int     `json:"max_pwm"`
-	MaxSamples     int     `json:"max_samples"`
-	MaxTemp        int     `json:"max_temp"`
-	OffBelow       int     `json:"off_below"`
-	Threshold      int     `json:"threshold"`
-	LogFile        string  `json:"log_file"`
-	Debug          bool    `json:"debug"`
-	OffSamples     int     `json:"off_samples"`
-	SimpleFanSpeed bool    `json:"simple_fan_speed"`
-	GPUID          int     `json:"gpu_id"`
-	VirtualSensor  bool    `json:"virtual_sensor"`
+	FanPath                string  `json:"fan_path"`
+	FanSensitivity         float64 `json:"fan_sensitivity"`
+	DaemonMode             bool    `json:"daemon_mode"`
+	PollInterval           int     `json:"poll_interval"`
+	BasePWM                int     `json:"base_pwm"`
+	MaxPWM                 int     `json:"max_pwm"`
+	MaxSamples             int     `json:"max_samples"`
+	MaxTemp                int     `json:"max_temp"`
+	OffBelow               int     `json:"off_below"`
+	Threshold              int     `json:"threshold"`
+	LogFile                string  `json:"log_file"`
+	Debug                  bool    `json:"debug"`
+	OffSamples             int     `json:"off_samples"`
+	SimpleFanSpeed         bool    `json:"simple_fan_speed"`
+	GPUID                  int     `json:"gpu_id"`
+	VirtualSensor          bool    `json:"virtual_sensor"`
+	IdlePowerSave          bool    `json:"idle_power_save"`
+	IdlePowerSaveThreshold int     `json:"idle_power_save_threshold"`
 }
 
 func init() {
 	// Initialize the logger
 	logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 
-	flag.StringVar(&fanPath, "fanpath", "/sys/class/hwmon/hwmon4/pwm3", "Path to the PWM fan control")
+	flag.StringVar(&fanPath, "fanpath", "/sys/class/hwmon/hwmon5/pwm3", "Path to the PWM fan control")
 	flag.Float64Var(&fanSensitivity, "sensitivity", 1.25, "Higher means slower initial response to temp changes.")
 	flag.BoolVar(&daemonMode, "daemon", false, "Run as a background daemon")
 	flag.IntVar(&pollInterval, "interval", 3, "Polling interval in seconds")
@@ -102,6 +110,8 @@ func init() {
 	flag.BoolVar(&simpleFanSpeed, "simpleFanSpeed", true, "Use a simple fan speed algorithm")
 	flag.IntVar(&gpuID, "gpuID", 0, "GPU ID to control")
 	flag.BoolVar(&virtualSensor, "virtualSensor", false, "Use the virtual sensor instead of the GPU temperature")
+	// flag.BoolVar(&idlePowerSave, "idlePowerSave", true, "Reduce speed when idle (even when app is loaded, but not processing)") // #TODO: this isn't working yet
+	// flag.IntVar(&idlePowerSaveThreshold, "idlePowerSaveThreshold", 5, "GPU utilisation threshold for idle power saving")
 
 	flag.Parse()
 
@@ -127,6 +137,8 @@ func init() {
 	originalSimpleFanSpeed := simpleFanSpeed
 	originalGPUID := gpuID
 	originalVirtualSensor := virtualSensor
+	originalIdlePowerSave := idlePowerSave
+	originalIdlePowerSaveThreshold := idlePowerSaveThreshold
 
 	if load && os.IsExist(checkConfig()) {
 		loadConfig()
@@ -176,6 +188,12 @@ func init() {
 	}
 	if virtualSensor != originalVirtualSensor {
 		virtualSensor = originalVirtualSensor
+	}
+	if idlePowerSave != originalIdlePowerSave {
+		idlePowerSave = originalIdlePowerSave
+	}
+	if idlePowerSaveThreshold != originalIdlePowerSaveThreshold {
+		idlePowerSaveThreshold = originalIdlePowerSaveThreshold
 	}
 
 	if save {
@@ -239,6 +257,8 @@ func loadConfig() {
 	simpleFanSpeed = cfg.SimpleFanSpeed
 	gpuID = cfg.GPUID
 	virtualSensor = cfg.VirtualSensor
+	idlePowerSave = cfg.IdlePowerSave
+	idlePowerSaveThreshold = cfg.IdlePowerSaveThreshold
 
 	logger.Println("Found and loaded config with values:", cfg)
 }
@@ -247,20 +267,22 @@ func saveConfig() {
 	logger.Println("Saving current settings to config file...")
 
 	cfg := Config{
-		FanPath:        fanPath,
-		FanSensitivity: fanSensitivity,
-		DaemonMode:     daemonMode,
-		PollInterval:   pollInterval,
-		BasePWM:        basePWM,
-		MaxPWM:         maxPWM,
-		MaxTemp:        maxTemp,
-		Threshold:      threshold,
-		LogFile:        logFile,
-		OffSamples:     offSamples,
-		OffBelow:       offBelow,
-		SimpleFanSpeed: simpleFanSpeed,
-		GPUID:          gpuID,
-		VirtualSensor:  virtualSensor,
+		FanPath:                fanPath,
+		FanSensitivity:         fanSensitivity,
+		DaemonMode:             daemonMode,
+		PollInterval:           pollInterval,
+		BasePWM:                basePWM,
+		MaxPWM:                 maxPWM,
+		MaxTemp:                maxTemp,
+		Threshold:              threshold,
+		LogFile:                logFile,
+		OffSamples:             offSamples,
+		OffBelow:               offBelow,
+		SimpleFanSpeed:         simpleFanSpeed,
+		GPUID:                  gpuID,
+		VirtualSensor:          virtualSensor,
+		IdlePowerSave:          idlePowerSave,
+		IdlePowerSaveThreshold: idlePowerSaveThreshold,
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -513,6 +535,122 @@ func dataSummary() {
 	logger.Println("Average temperature change per PWM change:", averageTempChangePerPWMChange)
 }
 
+func getClockSpeed() (int, int, int, int) {
+	output, err := exec.Command("nvidia-smi", "--format=csv,nounits", "--query-supported-clocks", "gr,mem").Output()
+	if err != nil {
+		logger.Println("Failed to get GPU clock speeds:", err)
+	}
+	// this outputs:
+	// graphics [MHz], memory [MHz]
+	// 1328, 715
+	// 1316, 715
+	// ...
+	// 556, 715
+	// 544, 715
+
+	// Split the output into lines
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	// Remove The first line, any empty lines and whitespace
+	lines = lines[1:]
+	lines = lines[:len(lines)-1]
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+
+	// Create an array of graphics and memory speeds
+	graphicsSpeeds := make([]int, len(lines))
+	memorySpeeds := make([]int, len(lines))
+	// Find the largest number in each array
+	for i, line := range lines {
+		// Split the line into graphics and memory speeds
+		speeds := strings.Split(line, ", ")
+		// Convert the speeds to ints
+		graphicsSpeeds[i], err = strconv.Atoi(speeds[0])
+		if err != nil {
+			logger.Println("Failed to parse GPU graphics clock speed:", err)
+		}
+		memorySpeeds[i], err = strconv.Atoi(speeds[1])
+		if err != nil {
+			logger.Println("Failed to parse GPU memory clock speed:", err)
+		}
+	}
+
+	// Find the max graphics and memory speeds
+	maxGraphicsSpeed := 0
+	maxMemorySpeed := 0
+
+	for _, speed := range graphicsSpeeds {
+		if speed > maxGraphicsSpeed {
+			maxGraphicsSpeed = speed
+		}
+
+	}
+	for _, speed := range memorySpeeds {
+		if speed > maxMemorySpeed {
+			maxMemorySpeed = speed
+		}
+	}
+
+	// Find the idle graphics and memory speeds
+	idleGraphicsSpeed := 0
+	idleMemorySpeed := 0
+
+	for _, speed := range graphicsSpeeds {
+		if speed < idleGraphicsSpeed || idleGraphicsSpeed == 0 {
+			idleGraphicsSpeed = speed
+		}
+	}
+	for _, speed := range memorySpeeds {
+		if speed < idleMemorySpeed || idleMemorySpeed == 0 {
+			idleMemorySpeed = speed
+		}
+	}
+
+	// Print the clock speeds
+	logger.Println("Max graphics clock speed:", maxGraphicsSpeed)
+	logger.Println("Max memory clock speed:", maxMemorySpeed)
+
+	logger.Println("Idle graphics clock speed:", idleGraphicsSpeed)
+	logger.Println("Idle memory clock speed:", idleMemorySpeed)
+
+	// return the max and idle clock speeds
+	return maxGraphicsSpeed, maxMemorySpeed, idleGraphicsSpeed, idleMemorySpeed
+}
+
+func setClockSpeed(int, int, int, int) {
+	// If the GPU is less than 5% utilised, reduce it's clock and memory speeds to save power
+	// e.g. nvidia-smi -ac 715,544 -i 0
+	// if it's more than 5% utilised, set it to the max clock and memory speeds
+	// e.g. nvidia-smi -ac 715,1328 -i 0
+
+	// If maxClockSpeed, maxMemorySpeed, idleClockSpeed, idleMemorySpeed are not set, get them
+	if maxClockSpeed == 0 || maxMemorySpeed == 0 || idleClockSpeed == 0 || idleMemorySpeed == 0 {
+		maxClockSpeed, maxMemorySpeed, idleClockSpeed, idleMemorySpeed = getClockSpeed()
+	}
+
+	// Get the current GPU utilisation
+	utilisation := GPUUtilisation()
+
+	// If the GPU is less than idlePowerSaveThreshold% utilised, reduce it's clock and memory speeds to save power
+	if utilisation < idlePowerSaveThreshold {
+		// Set the clock and memory speeds
+		cmd := exec.Command("nvidia-smi", "-ac", strconv.Itoa(idleClockSpeed)+","+strconv.Itoa(idleMemorySpeed), "-i", strconv.Itoa(gpuID))
+		err := cmd.Run()
+		if err != nil {
+			logger.Println("Failed to set clock and memory speeds:", err)
+		}
+		logger.Println("Set clock and memory speeds to idle speeds (", idleClockSpeed, ",", idleMemorySpeed, ")")
+	} else {
+		// Set the clock and memory speeds
+		cmd := exec.Command("nvidia-smi", "-ac", strconv.Itoa(maxClockSpeed)+","+strconv.Itoa(maxMemorySpeed), "-i", strconv.Itoa(gpuID))
+		err := cmd.Run()
+		if err != nil {
+			logger.Println("Failed to set clock and memory speeds:", err)
+		}
+		logger.Println("Set clock and memory speeds to max speeds (", maxClockSpeed, ",", maxMemorySpeed, ")")
+	}
+}
+
 func main() {
 	if listAllFans {
 		// List all fans and exit
@@ -595,6 +733,9 @@ func main() {
 		LogFile:        logFile,
 		OffBelow:       offBelow,
 		OffSamples:     offSamples,
+		SimpleFanSpeed: simpleFanSpeed,
+		GPUID:          gpuID,
+		VirtualSensor:  virtualSensor,
 	})
 
 	if daemonMode {
@@ -709,7 +850,13 @@ func main() {
 		// Store the current temperature values
 		previousTemperature = temperature
 
-		dataLog(previousTemperature, previousPWM, temperature, pwm)
+		// // in a sub-routine, check if the GPU is idle and set the clock speeds accordingly
+		// if idlePowerSave {
+		// 	go setClockSpeed(maxClockSpeed, maxMemorySpeed, idleClockSpeed, idleMemorySpeed)
+		// }
+
+		// Log the data
+		go dataLog(previousTemperature, previousPWM, temperature, pwm)
 
 		time.Sleep(time.Duration(pollInterval) * time.Second)
 	}
